@@ -7,13 +7,13 @@ import (
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
-	fileadapter "github.com/casbin/casbin/v2/persist/file-adapter"
+	fileAdapter "github.com/casbin/casbin/v2/persist/file-adapter"
 	"github.com/go-kratos/kratos/v2/middleware"
 	"github.com/go-kratos/kratos/v2/middleware/auth/jwt"
 	"github.com/go-kratos/kratos/v2/transport"
 	jwtV4 "github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
-	"kratos-casbin/authz"
+	"github.com/tx7do/kratos-casbin/authz"
 	"net/http"
 	"strings"
 	"testing"
@@ -97,18 +97,22 @@ type SecurityUser struct {
 	AuthorityId string
 }
 
+func NewSecurityUser() authz.SecurityUser {
+	return &SecurityUser{}
+}
+
 func (su *SecurityUser) ParseFromContext(ctx context.Context) error {
 	if claims, ok := jwt.FromContext(ctx); ok {
 		su.AuthorityId = claims.(jwtV4.MapClaims)[ClaimAuthorityId].(string)
 	} else {
-		return ErrMissingJwtToken
+		return errors.New("jwt claim missing")
 	}
 
 	if header, ok := transport.FromServerContext(ctx); ok {
 		su.Path = header.Operation()
 		su.Method = "*"
 	} else {
-		return ErrMissingJwtToken
+		return errors.New("jwt claim missing")
 	}
 
 	return nil
@@ -186,12 +190,6 @@ func createCasbin(mc, pc string) *casbin.Enforcer {
 	return e
 }
 
-func newHeader(headerKey string, value string) *headerCarrier {
-	header := &headerCarrier{}
-	header.Set(headerKey, value)
-	return header
-}
-
 func TestCasbin(t *testing.T) {
 	//m, _ := model.NewModelFromString(modelConfig)
 	m, _ := model.NewModelFromFile("../../examples/authz_model.conf")
@@ -199,7 +197,7 @@ func TestCasbin(t *testing.T) {
 	//m.PrintModel()
 	//m.PrintPolicy()
 
-	a := fileadapter.NewAdapter("../../examples/authz_policy.csv")
+	a := fileAdapter.NewAdapter("../../examples/authz_policy.csv")
 
 	//persist.LoadPolicyArray([]string{"p", "bobo", "/api/login", "*"}, m)
 	//persist.LoadPolicyArray([]string{"p", "api_admin", "/api/*", "*"}, m)
@@ -218,7 +216,7 @@ func TestCasbin(t *testing.T) {
 	enforcer.EnableAutoBuildRoleLinks(true)
 
 	{
-		allowed, _, err := enforcer.EnforceEx("bobo", "/api/login", "*")
+		allowed, _, err := enforcer.EnforceEx("bobo", "/api/fix", "*")
 		assert.Nil(t, err)
 		assert.True(t, allowed)
 		//fmt.Println("1", explain)
@@ -239,7 +237,7 @@ func TestCasbin(t *testing.T) {
 	}
 
 	{
-		allowed, _, err := enforcer.EnforceEx("admin", "/api/login", "*")
+		allowed, _, err := enforcer.EnforceEx("admin", "/api/users", "*")
 		assert.Nil(t, err)
 		assert.True(t, allowed)
 		//fmt.Println("4", explain)
@@ -262,8 +260,8 @@ func TestCasbin1(t *testing.T) {
 }
 
 func TestServer(t *testing.T) {
-	var securityUser authz.SecurityUser = &SecurityUser{}
-	enforcer := createCasbin(modelConfig, policyConfig)
+	m, _ := model.NewModelFromFile("../../examples/authz_model.conf")
+	a := fileAdapter.NewAdapter("../../examples/authz_policy.csv")
 
 	tests := []struct {
 		name        string
@@ -304,8 +302,9 @@ func TestServer(t *testing.T) {
 
 			var server middleware.Handler
 			server = Server(
-				WithEnforcer(enforcer),
-				WithSecurityUser(securityUser),
+				WithCasbinModel(m),
+				WithCasbinPolicy(a),
+				WithSecurityUserCreator(NewSecurityUser),
 			)(next)
 			_, err := server(ctx, "request")
 			if !errors.Is(test.exceptErr, err) {

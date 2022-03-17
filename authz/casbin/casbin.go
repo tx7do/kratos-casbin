@@ -2,81 +2,92 @@ package casbin
 
 import (
 	"context"
-	"github.com/casbin/casbin/v2"
+	stdcasbin "github.com/casbin/casbin/v2"
+	"github.com/casbin/casbin/v2/model"
+	"github.com/casbin/casbin/v2/persist"
 	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/middleware"
-	"kratos-casbin/authz"
+	"github.com/tx7do/kratos-casbin/authz"
 )
 
-const (
-	bearerWord   string = "Bearer"
-	bearerFormat string = "Bearer %s"
+type contextKey string
 
-	authorizationKey string = "Authorization"
+const (
+	ModelContextKey        contextKey = "CasbinModel"
+	PolicyContextKey       contextKey = "CasbinPolicy"
+	EnforcerContextKey     contextKey = "CasbinEnforcer"
+	SecurityUserContextKey contextKey = "CasbinSecurityUser"
 
 	reason string = "FORBIDDEN"
 )
 
 var (
-	ErrMissingJwtToken = errors.Forbidden(reason, "JWT token is missing")
-	ErrTokenInvalid    = errors.Forbidden(reason, "Token is invalid")
-	ErrForbidden       = errors.Forbidden(reason, "forbidden")
+	ErrSecurityUserCreatorMissing = errors.Forbidden(reason, "SecurityUserCreator is required")
+	ErrEnforcerMissing            = errors.Forbidden(reason, "Enforcer is missing")
+	ErrSecurityParseFailed        = errors.Forbidden(reason, "Security Info fault")
+	ErrUnauthorized               = errors.Forbidden(reason, "Unauthorized Access")
 )
 
 type Option func(*options)
 
 type options struct {
-	keyName      string
-	enforcer     *casbin.Enforcer
-	securityUser authz.SecurityUser
+	securityUserCreator authz.SecurityUserCreator
+	model               model.Model
+	policy              persist.Adapter
+	enforcer            *stdcasbin.SyncedEnforcer
 }
 
-func WithEnforcer(enforcer *casbin.Enforcer) Option {
+func WithSecurityUserCreator(securityUserCreator authz.SecurityUserCreator) Option {
 	return func(o *options) {
-		o.enforcer = enforcer
+		o.securityUserCreator = securityUserCreator
 	}
 }
 
-func WithKeyName(keyName string) Option {
+func WithCasbinModel(model model.Model) Option {
 	return func(o *options) {
-		o.keyName = keyName
+		o.model = model
 	}
 }
 
-func WithSecurityUser(securityUser authz.SecurityUser) Option {
+func WithCasbinPolicy(policy persist.Adapter) Option {
 	return func(o *options) {
-		o.securityUser = securityUser
+		o.policy = policy
 	}
 }
 
 func Server(opts ...Option) middleware.Middleware {
 	o := &options{
-		enforcer:     nil,
-		securityUser: nil,
+		securityUserCreator: nil,
 	}
 	for _, opt := range opts {
 		opt(o)
 	}
 
+	o.enforcer, _ = stdcasbin.NewSyncedEnforcer(o.model, o.policy)
+
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
+
 			if o.enforcer == nil {
-				return handler(ctx, req)
+				return nil, ErrEnforcerMissing
 			}
-			if o.securityUser == nil {
-				return handler(ctx, req)
-			}
-
-			if err := o.securityUser.ParseFromContext(ctx); err != nil {
-				return nil, ErrTokenInvalid
+			if o.securityUserCreator == nil {
+				return nil, ErrSecurityUserCreatorMissing
 			}
 
-			allowed, err := o.enforcer.Enforce(o.securityUser.GetSubject(), o.securityUser.GetObject(), o.securityUser.GetAction())
+			securityUser := o.securityUserCreator()
+			if err := securityUser.ParseFromContext(ctx); err != nil {
+				return nil, ErrSecurityParseFailed
+			}
+
+			ctx = context.WithValue(ctx, SecurityUserContextKey, securityUser)
+
+			allowed, err := o.enforcer.Enforce(securityUser.GetSubject(), securityUser.GetObject(), securityUser.GetAction())
 			if err != nil {
 				return nil, err
 			}
 			if !allowed {
-				return nil, ErrForbidden
+				return nil, ErrUnauthorized
 			}
 			return handler(ctx, req)
 		}
@@ -85,9 +96,7 @@ func Server(opts ...Option) middleware.Middleware {
 
 func Client(opts ...Option) middleware.Middleware {
 	o := &options{
-		enforcer:     nil,
-		keyName:      authorizationKey,
-		securityUser: nil,
+		securityUserCreator: nil,
 	}
 	for _, opt := range opts {
 		opt(o)
@@ -95,13 +104,6 @@ func Client(opts ...Option) middleware.Middleware {
 
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
-			if o.enforcer == nil {
-				return handler(ctx, req)
-			}
-			if o.securityUser == nil {
-				return handler(ctx, req)
-			}
-
 			return handler(ctx, req)
 		}
 	}

@@ -15,3 +15,5 @@ type SecurityUser interface {
 	// GetAction returns the action of the token.
 	GetAction() string
 }
+
+type SecurityUserCreator func() SecurityUser
