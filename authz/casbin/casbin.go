@@ -2,7 +2,6 @@ package casbin
 
 import (
 	"context"
-	"fmt"
 	"github.com/casbin/casbin/v2"
 	"github.com/go-kratos/kratos/v2/errors"
 	"github.com/go-kratos/kratos/v2/middleware"
@@ -71,8 +70,6 @@ func Server(opts ...Option) middleware.Middleware {
 			if err := o.securityUser.ParseFromContext(ctx); err != nil {
 				return nil, ErrTokenInvalid
 			}
-
-			fmt.Println("Excuete: ", o.securityUser.GetSubject(), o.securityUser.GetObject(), o.securityUser.GetAction())
 
 			allowed, err := o.enforcer.Enforce(o.securityUser.GetSubject(), o.securityUser.GetObject(), o.securityUser.GetAction())
 			if err != nil {

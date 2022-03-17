@@ -1,0 +1,10 @@
+p, alice, /dataset1/*, GET
+p, alice, /dataset1/resource1, POST
+p, bob, /dataset2/resource1, *
+p, bob, /dataset2/resource2, GET
+p, bob, /dataset2/folder1/*, POST
+p, dataset1_admin, /dataset1/*, *
+g, cathy, dataset1_admin
+p, bobo, /api/*, *
+p, api_admin, /api/*, *
+g, admin, api_admin

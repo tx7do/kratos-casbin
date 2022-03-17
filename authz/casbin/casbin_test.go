@@ -2,10 +2,12 @@ package casbin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
+	fileadapter "github.com/casbin/casbin/v2/persist/file-adapter"
 	"github.com/go-kratos/kratos/v2/middleware"
 	"github.com/go-kratos/kratos/v2/middleware/auth/jwt"
 	"github.com/go-kratos/kratos/v2/transport"
@@ -165,13 +167,18 @@ func loadPolicyLine(line *CasbinRule, model model.Model) {
 }
 
 func createCasbin(mc, pc string) *casbin.Enforcer {
-	m, _ := model.NewModelFromString(mc)
+	//m, _ := model.NewModelFromString(mc)
+	//m.PrintModel()
+	//m.PrintPolicy()
+	//
+	//persist.LoadPolicyArray([]string{"p", "bobo", "/api/login", "*"}, m)
+	//persist.LoadPolicyArray([]string{"p", "api_admin", "/api/*"}, m)
+	//persist.LoadPolicyArray([]string{"g", "admin", "api_admin"}, m)
+	//
+	//m.PrintModel()
+	//m.PrintPolicy()
 
-	persist.LoadPolicyArray([]string{"g", "bobo", "/api/login", "*"}, m)
-	persist.LoadPolicyArray([]string{"p", "api_admin", "/api/*"}, m)
-	persist.LoadPolicyArray([]string{"g", "admin", "api_admin"}, m)
-
-	e, err := casbin.NewEnforcer(m)
+	e, err := casbin.NewEnforcer("../../examples/authz_model.conf", "../../examples/authz_policy.csv")
 	if err != nil {
 		panic(err)
 	}
@@ -186,13 +193,61 @@ func newHeader(headerKey string, value string) *headerCarrier {
 }
 
 func TestCasbin(t *testing.T) {
-	m, _ := model.NewModelFromString(modelConfig)
+	//m, _ := model.NewModelFromString(modelConfig)
+	m, _ := model.NewModelFromFile("../../examples/authz_model.conf")
+	//m.GetLogger().EnableLog(true)
+	//m.PrintModel()
+	//m.PrintPolicy()
 
-	persist.LoadPolicyArray([]string{"p", "bobo", "/api/login", "*"}, m)
-	persist.LoadPolicyArray([]string{"p", "api_admin", "/api/*", "*"}, m)
-	persist.LoadPolicyArray([]string{"g", "admin", "api_admin"}, m)
+	a := fileadapter.NewAdapter("../../examples/authz_policy.csv")
 
-	enforcer, err := casbin.NewEnforcer(m)
+	//persist.LoadPolicyArray([]string{"p", "bobo", "/api/login", "*"}, m)
+	//persist.LoadPolicyArray([]string{"p", "api_admin", "/api/*", "*"}, m)
+	//persist.LoadPolicyArray([]string{"g", "admin", "api_admin"}, m)
+
+	//m.PrintModel()
+	//m.PrintPolicy()
+
+	enforcer, err := casbin.NewEnforcer(m, a)
+	if err != nil {
+		panic(err)
+	}
+
+	enforcer.EnableEnforce(true)
+	enforcer.EnableLog(true)
+	enforcer.EnableAutoBuildRoleLinks(true)
+
+	{
+		allowed, _, err := enforcer.EnforceEx("bobo", "/api/login", "*")
+		assert.Nil(t, err)
+		assert.True(t, allowed)
+		//fmt.Println("1", explain)
+	}
+
+	{
+		allowed, _, err := enforcer.EnforceEx("alice", "/dataset1/item", "GET")
+		assert.Nil(t, err)
+		assert.True(t, allowed)
+		//fmt.Println("2", explain)
+	}
+
+	{
+		allowed, _, err := enforcer.EnforceEx("cathy", "/dataset1/item", "GET")
+		assert.Nil(t, err)
+		assert.True(t, allowed)
+		//fmt.Println("3", explain)
+	}
+
+	{
+		allowed, _, err := enforcer.EnforceEx("admin", "/api/login", "*")
+		assert.Nil(t, err)
+		assert.True(t, allowed)
+		//fmt.Println("4", explain)
+	}
+}
+
+func TestCasbin1(t *testing.T) {
+	enforcer, err := casbin.NewEnforcer("../../examples/authz_model.conf", "../../examples/authz_policy.csv")
 	if err != nil {
 		panic(err)
 	}
@@ -200,13 +255,7 @@ func TestCasbin(t *testing.T) {
 	enforcer.EnableLog(true)
 
 	{
-		allowed, err := enforcer.Enforce("bobo", "/api/login", "*")
-		assert.Nil(t, err)
-		assert.True(t, allowed)
-	}
-
-	{
-		allowed, err := enforcer.Enforce("admin", "/api/login", "*")
+		allowed, err := enforcer.Enforce("cathy", "/dataset1/item", "*")
 		assert.Nil(t, err)
 		assert.True(t, allowed)
 	}
@@ -214,24 +263,59 @@ func TestCasbin(t *testing.T) {
 
 func TestServer(t *testing.T) {
 	var securityUser authz.SecurityUser = &SecurityUser{}
-
 	enforcer := createCasbin(modelConfig, policyConfig)
 
-	token := createToken("admin")
-
-	ctx := transport.NewServerContext(context.Background(), &Transport{operation: "/api/login", reqHeader: newHeader(authorizationKey, "")})
-	ctx = jwt.NewContext(ctx, token)
-
-	next := func(ctx context.Context, req interface{}) (interface{}, error) {
-		t.Log(req)
-		return "reply", nil
+	tests := []struct {
+		name        string
+		authorityId string
+		path        string
+		exceptErr   error
+	}{
+		{
+			name:        "admin",
+			authorityId: "admin",
+			path:        "/api/login",
+			exceptErr:   nil,
+		},
+		{
+			name:        "admin",
+			authorityId: "admin",
+			path:        "/api/logout",
+			exceptErr:   nil,
+		},
+		{
+			name:        "bobo",
+			authorityId: "bobo",
+			path:        "/api/login",
+			exceptErr:   nil,
+		},
 	}
 
-	var server middleware.Handler
-	server = Server(
-		WithEnforcer(enforcer),
-		WithSecurityUser(securityUser),
-	)(next)
-	_, err2 := server(ctx, "request")
-	assert.Nil(t, err2)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			next := func(ctx context.Context, req interface{}) (interface{}, error) {
+				//t.Log(req)
+				return "reply", nil
+			}
+
+			token := createToken(test.authorityId)
+			ctx := transport.NewServerContext(context.Background(), &Transport{operation: test.path})
+			ctx = jwt.NewContext(ctx, token)
+
+			var server middleware.Handler
+			server = Server(
+				WithEnforcer(enforcer),
+				WithSecurityUser(securityUser),
+			)(next)
+			_, err := server(ctx, "request")
+			if !errors.Is(test.exceptErr, err) {
+				t.Errorf("except error %v, but got %v", test.exceptErr, err)
+			}
+		})
+	}
+
+}
+
+func TestClient(t *testing.T) {
+
 }
