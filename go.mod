@@ -1,4 +1,4 @@
-module kratos-casbin
+module github.com/tx7do/kratos-casbin
 
 go 1.17
 

@@ -247,7 +247,7 @@ func TestCasbin(t *testing.T) {
 }
 
 func TestCasbin1(t *testing.T) {
-	enforcer, err := casbin.NewEnforcer("../../examples/authz_model.conf", "../../examples/authz_policy.csv")
+	enforcer, err := casbin.NewSyncedEnforcer("../../examples/authz_model.conf", "../../examples/authz_policy.csv")
 	if err != nil {
 		panic(err)
 	}
