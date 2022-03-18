@@ -19,6 +19,23 @@ const (
 	SecurityUserContextKey contextKey = "CasbinSecurityUser"
 
 	reason string = "FORBIDDEN"
+
+	defaultRBACModel = `
+[request_definition]
+r = sub, obj, act
+
+[policy_definition]
+p = sub, obj, act
+
+[role_definition]
+g = _, _
+
+[policy_effect]
+e = some(where (p.eft == allow))
+
+[matchers]
+m = g(r.sub, p.sub) && keyMatch(r.obj, p.obj) && (r.act == p.act || p.act == "*")
+`
 )
 
 var (
@@ -55,12 +72,21 @@ func WithCasbinPolicy(policy persist.Adapter) Option {
 	}
 }
 
+// loadRbacModel 加载RBAC模型
+func loadRbacModel() (model.Model, error) {
+	return model.NewModelFromString(defaultRBACModel)
+}
+
 func Server(opts ...Option) middleware.Middleware {
 	o := &options{
 		securityUserCreator: nil,
 	}
 	for _, opt := range opts {
 		opt(o)
+	}
+
+	if o.model == nil {
+		o.model, _ = loadRbacModel()
 	}
 
 	o.enforcer, _ = stdcasbin.NewSyncedEnforcer(o.model, o.policy)
@@ -101,6 +127,12 @@ func Client(opts ...Option) middleware.Middleware {
 	for _, opt := range opts {
 		opt(o)
 	}
+
+	if o.model == nil {
+		o.model, _ = loadRbacModel()
+	}
+
+	o.enforcer, _ = stdcasbin.NewSyncedEnforcer(o.model, o.policy)
 
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
