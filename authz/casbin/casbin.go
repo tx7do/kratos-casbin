@@ -140,3 +140,9 @@ func Client(opts ...Option) middleware.Middleware {
 		}
 	}
 }
+
+// SecurityUserFromContext extract SecurityUser from context
+func SecurityUserFromContext(ctx context.Context) (authz.SecurityUser, bool) {
+	user, ok := ctx.Value(SecurityUserContextKey).(authz.SecurityUser)
+	return user, ok
+}
