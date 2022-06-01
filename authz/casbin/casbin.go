@@ -56,7 +56,8 @@ type options struct {
 	enforcer            *stdcasbin.SyncedEnforcer
 }
 
-func WithDomain() Option {
+// WithDomainSupport  enable domain support
+func WithDomainSupport() Option {
 	return func(o *options) {
 		o.enableDomain = true
 	}
