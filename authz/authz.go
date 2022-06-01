@@ -14,6 +14,8 @@ type SecurityUser interface {
 
 	// GetAction returns the action of the token.
 	GetAction() string
+	// GetDomain returns the domain of the token.
+	GetDomain() string
 }
 
 type SecurityUserCreator func() SecurityUser
