@@ -4,6 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"strings"
+	"testing"
+
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
@@ -14,13 +18,11 @@ import (
 	jwtV4 "github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/assert"
 	"github.com/tx7do/kratos-casbin/authz"
-	"net/http"
-	"strings"
-	"testing"
 )
 
 const (
 	ClaimAuthorityId = "authorityId"
+	Domain           = "domain"
 )
 
 const modelConfig = `
@@ -95,6 +97,7 @@ type SecurityUser struct {
 	Path        string
 	Method      string
 	AuthorityId string
+	Domain      string
 }
 
 func NewSecurityUser() authz.SecurityUser {
@@ -104,6 +107,7 @@ func NewSecurityUser() authz.SecurityUser {
 func (su *SecurityUser) ParseFromContext(ctx context.Context) error {
 	if claims, ok := jwt.FromContext(ctx); ok {
 		su.AuthorityId = claims.(jwtV4.MapClaims)[ClaimAuthorityId].(string)
+		su.Domain = claims.(jwtV4.MapClaims)[Domain].(string)
 	} else {
 		return errors.New("jwt claim missing")
 	}
@@ -130,6 +134,9 @@ func (su *SecurityUser) GetAction() string {
 	return su.Method
 }
 
+func (su *SecurityUser) GetDomain() string {
+	return su.Domain
+}
 func createToken(authorityId string) jwtV4.Claims {
 	return jwtV4.MapClaims{
 		ClaimAuthorityId: authorityId,

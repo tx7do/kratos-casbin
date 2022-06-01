@@ -2,6 +2,7 @@ package casbin
 
 import (
 	"context"
+
 	stdcasbin "github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
@@ -48,10 +49,17 @@ var (
 type Option func(*options)
 
 type options struct {
+	enableDomain        bool
 	securityUserCreator authz.SecurityUserCreator
 	model               model.Model
 	policy              persist.Adapter
 	enforcer            *stdcasbin.SyncedEnforcer
+}
+
+func WithDomain() Option {
+	return func(o *options) {
+		o.enableDomain = true
+	}
 }
 
 func WithSecurityUserCreator(securityUserCreator authz.SecurityUserCreator) Option {
@@ -93,6 +101,10 @@ func Server(opts ...Option) middleware.Middleware {
 
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
+			var (
+				allowed bool
+				err     error
+			)
 
 			if o.enforcer == nil {
 				return nil, ErrEnforcerMissing
@@ -107,8 +119,11 @@ func Server(opts ...Option) middleware.Middleware {
 			}
 
 			ctx = context.WithValue(ctx, SecurityUserContextKey, securityUser)
-
-			allowed, err := o.enforcer.Enforce(securityUser.GetSubject(), securityUser.GetObject(), securityUser.GetAction())
+			if o.enableDomain {
+				allowed, err = o.enforcer.Enforce(securityUser.GetSubject(), securityUser.GetDomain(), securityUser.GetObject(), securityUser.GetAction())
+			} else {
+				allowed, err = o.enforcer.Enforce(securityUser.GetSubject(), securityUser.GetObject(), securityUser.GetAction())
+			}
 			if err != nil {
 				return nil, err
 			}
