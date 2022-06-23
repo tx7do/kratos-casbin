@@ -106,8 +106,14 @@ func NewSecurityUser() authz.SecurityUser {
 
 func (su *SecurityUser) ParseFromContext(ctx context.Context) error {
 	if claims, ok := jwt.FromContext(ctx); ok {
-		su.AuthorityId = claims.(jwtV4.MapClaims)[ClaimAuthorityId].(string)
-		su.Domain = claims.(jwtV4.MapClaims)[Domain].(string)
+		str, ok := claims.(jwtV4.MapClaims)[ClaimAuthorityId]
+		if ok {
+			su.AuthorityId = str.(string)
+		}
+		str, ok = claims.(jwtV4.MapClaims)[Domain]
+		if ok {
+			su.Domain = str.(string)
+		}
 	} else {
 		return errors.New("jwt claim missing")
 	}
