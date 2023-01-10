@@ -2,6 +2,7 @@ package casbin
 
 import (
 	"context"
+	"time"
 
 	stdcasbin "github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
@@ -49,17 +50,27 @@ var (
 type Option func(*options)
 
 type options struct {
-	enableDomain        bool
-	securityUserCreator authz.SecurityUserCreator
-	model               model.Model
-	policy              persist.Adapter
-	enforcer            *stdcasbin.SyncedEnforcer
+	enableDomain           bool
+	autoLoadPolicy         bool
+	autoLoadPolicyInterval time.Duration
+	securityUserCreator    authz.SecurityUserCreator
+	model                  model.Model
+	policy                 persist.Adapter
+	enforcer               *stdcasbin.SyncedEnforcer
 }
 
 // WithDomainSupport  enable domain support
 func WithDomainSupport() Option {
 	return func(o *options) {
 		o.enableDomain = true
+	}
+}
+
+// WithAutoLoadPolicy enable policy auto load option
+func WithAutoLoadPolicy(auto bool, per time.Duration) Option {
+	return func(o *options) {
+		o.autoLoadPolicy = auto
+		o.autoLoadPolicyInterval = per
 	}
 }
 
@@ -99,7 +110,10 @@ func Server(opts ...Option) middleware.Middleware {
 	}
 
 	o.enforcer, _ = stdcasbin.NewSyncedEnforcer(o.model, o.policy)
-
+	// set autoload policy
+	if o.autoLoadPolicy && o.autoLoadPolicyInterval > time.Duration(0) {
+		o.enforcer.StartAutoLoadPolicy(o.autoLoadPolicyInterval)
+	}
 	return func(handler middleware.Handler) middleware.Handler {
 		return func(ctx context.Context, req interface{}) (interface{}, error) {
 			var (
@@ -110,6 +124,7 @@ func Server(opts ...Option) middleware.Middleware {
 			if o.enforcer == nil {
 				return nil, ErrEnforcerMissing
 			}
+
 			if o.securityUserCreator == nil {
 				return nil, ErrSecurityUserCreatorMissing
 			}
