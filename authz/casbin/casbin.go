@@ -111,7 +111,7 @@ func Server(opts ...Option) middleware.Middleware {
 
 	o.enforcer, _ = stdcasbin.NewSyncedEnforcer(o.model, o.policy)
 	// set autoload policy
-	if o.autoLoadPolicy && o.autoLoadPolicyInterval > time.Duration(0) {
+	if o.enforcer != nil && o.autoLoadPolicy && o.autoLoadPolicyInterval > time.Duration(0) {
 		o.enforcer.StartAutoLoadPolicy(o.autoLoadPolicyInterval)
 	}
 	return func(handler middleware.Handler) middleware.Handler {
