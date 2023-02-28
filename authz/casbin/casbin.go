@@ -56,6 +56,7 @@ type options struct {
 	securityUserCreator    authz.SecurityUserCreator
 	model                  model.Model
 	policy                 persist.Adapter
+	watcher                persist.Watcher
 	enforcer               *stdcasbin.SyncedEnforcer
 }
 
@@ -63,6 +64,13 @@ type options struct {
 func WithDomainSupport() Option {
 	return func(o *options) {
 		o.enableDomain = true
+	}
+}
+
+// WithWatcher Set Watcher for Casbin
+func WithWatcher(watcher persist.Watcher) Option {
+	return func(o *options) {
+		o.watcher = watcher
 	}
 }
 
@@ -110,6 +118,9 @@ func Server(opts ...Option) middleware.Middleware {
 	}
 
 	o.enforcer, _ = stdcasbin.NewSyncedEnforcer(o.model, o.policy)
+	if o.enforcer != nil && o.watcher != nil {
+		_ = o.enforcer.SetWatcher(o.watcher)
+	}
 	// set autoload policy
 	if o.enforcer != nil && o.autoLoadPolicy && o.autoLoadPolicyInterval > time.Duration(0) {
 		if !o.enforcer.IsAutoLoadingRunning() {
@@ -126,7 +137,6 @@ func Server(opts ...Option) middleware.Middleware {
 			if o.enforcer == nil {
 				return nil, ErrEnforcerMissing
 			}
-
 			if o.securityUserCreator == nil {
 				return nil, ErrSecurityUserCreatorMissing
 			}
