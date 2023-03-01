@@ -119,6 +119,9 @@ func Server(opts ...Option) middleware.Middleware {
 
 	o.enforcer, _ = stdcasbin.NewSyncedEnforcer(o.model, o.policy)
 	if o.enforcer != nil && o.watcher != nil {
+		o.watcher.SetUpdateCallback(func(s string) {
+			o.enforcer.LoadPolicy()
+		})
 		_ = o.enforcer.SetWatcher(o.watcher)
 	}
 	// set autoload policy
