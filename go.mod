@@ -3,7 +3,7 @@ module github.com/tx7do/kratos-casbin
 go 1.16
 
 require (
-	github.com/casbin/casbin/v2 v2.65.2
+	github.com/casbin/casbin/v2 v2.68.0
 	github.com/go-kratos/kratos/v2 v2.6.1
 	github.com/golang-jwt/jwt/v4 v4.5.0
 	github.com/stretchr/testify v1.8.2
