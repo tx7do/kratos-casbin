@@ -92,7 +92,7 @@ require (
 	github.com/hashicorp/serf v0.10.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
-	github.com/tx7do/kratos-casbin v0.0.0-20241021050303-259b0df8b5f7
+	github.com/tx7do/kratos-casbin v0.0.0-20241021070024-770400e2f0b4
 	golang.org/x/net v0.30.0 // indirect
 	golang.org/x/sys v0.26.0 // indirect
 	google.golang.org/genproto v0.0.0-20240213162025-012b6fc9bca9 // indirect
