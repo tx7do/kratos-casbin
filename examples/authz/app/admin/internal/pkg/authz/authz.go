@@ -4,18 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/go-kratos/kratos/v2/middleware/auth/jwt"
 	"github.com/go-kratos/kratos/v2/transport"
-	jwtV4 "github.com/golang-jwt/jwt/v4"
+
+	jwtV5 "github.com/golang-jwt/jwt/v5"
+
 	authzM "github.com/tx7do/kratos-casbin/authz"
 )
 
 const (
 	ClaimAuthorityId = "authorityId"
+	Domain           = "domain"
 )
 
 type SecurityUser struct {
 	Path        string
+	Domain      string
 	Method      string
 	AuthorityId string
 }
@@ -26,7 +31,8 @@ func NewSecurityUser() authzM.SecurityUser {
 
 func (su *SecurityUser) ParseFromContext(ctx context.Context) error {
 	if claims, ok := jwt.FromContext(ctx); ok {
-		su.AuthorityId = claims.(jwtV4.MapClaims)[ClaimAuthorityId].(string)
+		su.AuthorityId = claims.(jwtV5.MapClaims)[ClaimAuthorityId].(string)
+		su.Domain = claims.(jwtV5.MapClaims)[Domain].(string)
 	} else {
 		return errors.New("jwt claim missing")
 	}
@@ -53,9 +59,13 @@ func (su *SecurityUser) GetAction() string {
 	return su.Method
 }
 
+func (su *SecurityUser) GetDomain() string {
+	return su.Domain
+}
+
 func (su *SecurityUser) CreateAccessJwtToken(secretKey []byte) string {
-	claims := jwtV4.NewWithClaims(jwtV4.SigningMethodHS256,
-		jwtV4.MapClaims{
+	claims := jwtV5.NewWithClaims(jwtV5.SigningMethodHS256,
+		jwtV5.MapClaims{
 			ClaimAuthorityId: su.AuthorityId,
 		})
 
@@ -81,14 +91,14 @@ func (su *SecurityUser) ParseAccessJwtTokenFromContext(ctx context.Context) erro
 }
 
 func (su *SecurityUser) ParseAccessJwtTokenFromString(token string, secretKey []byte) error {
-	parseAuth, err := jwtV4.Parse(token, func(*jwtV4.Token) (interface{}, error) {
+	parseAuth, err := jwtV5.Parse(token, func(*jwtV5.Token) (interface{}, error) {
 		return secretKey, nil
 	})
 	if err != nil {
 		return err
 	}
 
-	claims, ok := parseAuth.Claims.(jwtV4.MapClaims)
+	claims, ok := parseAuth.Claims.(jwtV5.MapClaims)
 	if !ok {
 		return errors.New("no jwt token in context")
 	}
@@ -100,12 +110,12 @@ func (su *SecurityUser) ParseAccessJwtTokenFromString(token string, secretKey []
 	return nil
 }
 
-func (su *SecurityUser) ParseAccessJwtToken(claims jwtV4.Claims) error {
+func (su *SecurityUser) ParseAccessJwtToken(claims jwtV5.Claims) error {
 	if claims == nil {
 		return errors.New("claims is nil")
 	}
 
-	mc, ok := claims.(jwtV4.MapClaims)
+	mc, ok := claims.(jwtV5.MapClaims)
 	if !ok {
 		return errors.New("claims is not map claims")
 	}

@@ -8,15 +8,19 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/casbin/casbin/v2"
 	"github.com/casbin/casbin/v2/model"
 	"github.com/casbin/casbin/v2/persist"
 	fileAdapter "github.com/casbin/casbin/v2/persist/file-adapter"
+
 	"github.com/go-kratos/kratos/v2/middleware"
 	"github.com/go-kratos/kratos/v2/middleware/auth/jwt"
 	"github.com/go-kratos/kratos/v2/transport"
-	jwtV4 "github.com/golang-jwt/jwt/v4"
-	"github.com/stretchr/testify/assert"
+
+	jwtV5 "github.com/golang-jwt/jwt/v5"
+
 	"github.com/tx7do/kratos-casbin/authz"
 )
 
@@ -106,11 +110,11 @@ func NewSecurityUser() authz.SecurityUser {
 
 func (su *SecurityUser) ParseFromContext(ctx context.Context) error {
 	if claims, ok := jwt.FromContext(ctx); ok {
-		str, ok := claims.(jwtV4.MapClaims)[ClaimAuthorityId]
+		str, ok := claims.(jwtV5.MapClaims)[ClaimAuthorityId]
 		if ok {
 			su.AuthorityId = str.(string)
 		}
-		str, ok = claims.(jwtV4.MapClaims)[Domain]
+		str, ok = claims.(jwtV5.MapClaims)[Domain]
 		if ok {
 			su.Domain = str.(string)
 		}
@@ -143,8 +147,8 @@ func (su *SecurityUser) GetAction() string {
 func (su *SecurityUser) GetDomain() string {
 	return su.Domain
 }
-func createToken(authorityId string) jwtV4.Claims {
-	return jwtV4.MapClaims{
+func createToken(authorityId string) jwtV5.Claims {
+	return jwtV5.MapClaims{
 		ClaimAuthorityId: authorityId,
 	}
 }
@@ -180,7 +184,7 @@ func loadPolicyLine(line *CasbinRule, model model.Model) {
 
 	fmt.Println(lineText)
 
-	persist.LoadPolicyLine(lineText, model)
+	_ = persist.LoadPolicyLine(lineText, model)
 }
 
 func createCasbin(mc, pc string) *casbin.Enforcer {

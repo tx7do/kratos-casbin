@@ -2,8 +2,12 @@ package server
 
 import (
 	"context"
+
 	"github.com/casbin/casbin/v2/model"
 	fileAdapter "github.com/casbin/casbin/v2/persist/file-adapter"
+
+	jwtV5 "github.com/golang-jwt/jwt/v5"
+
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/auth/jwt"
 	"github.com/go-kratos/kratos/v2/middleware/logging"
@@ -11,13 +15,15 @@ import (
 	"github.com/go-kratos/kratos/v2/middleware/selector"
 	"github.com/go-kratos/kratos/v2/middleware/tracing"
 	"github.com/go-kratos/kratos/v2/transport/http"
+
 	"github.com/go-kratos/swagger-api/openapiv2"
-	jwtV4 "github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/handlers"
-	"kratos-casbin/api/admin/v1"
-	"kratos-casbin/app/admin/internal/conf"
 
 	casbinM "github.com/tx7do/kratos-casbin/authz/casbin"
+
+	"kratos-casbin/api/admin/v1"
+
+	"kratos-casbin/app/admin/internal/conf"
 	myAuthz "kratos-casbin/app/admin/internal/pkg/authz"
 	"kratos-casbin/app/admin/internal/service"
 )
@@ -48,10 +54,10 @@ func NewMiddleware(ac *conf.Auth, logger log.Logger) http.ServerOption {
 		logging.Server(logger),
 		selector.Server(
 			jwt.Server(
-				func(token *jwtV4.Token) (interface{}, error) {
+				func(token *jwtV5.Token) (interface{}, error) {
 					return []byte(ac.ApiKey), nil
 				},
-				jwt.WithSigningMethod(jwtV4.SigningMethodHS256),
+				jwt.WithSigningMethod(jwtV5.SigningMethodHS256),
 			),
 			casbinM.Server(
 				casbinM.WithCasbinModel(m),
