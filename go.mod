@@ -6,7 +6,7 @@ toolchain go1.23.2
 
 require (
 	github.com/casbin/casbin/v2 v2.103.0
-	github.com/go-kratos/kratos/v2 v2.8.3
+	github.com/go-kratos/kratos/v2 v2.8.4
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/stretchr/testify v1.10.0
 )
